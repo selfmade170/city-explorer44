@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Abandoned City Exploration</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* Basic reset and body styling */
+        body {
+            margin: 0;
+            overflow: hidden; /* Prevent scrollbars */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #2c3e50; /* Dark background for city theme */
+            font-family: 'Press Start 2P', cursive; /* Retro game font */
+            color: #ecf0f1; /* Light text color */
+        }
+
+        /* Game container to center and add some padding */
+        .game-container {
+            background-color: #34495e; /* Slightly lighter background for the game area */
+            border: 8px solid #2c3e50;
+            border-radius: 15px;
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 90vw; /* Max width to fit smaller screens */
+            max-height: 90vh; /* Max height to fit smaller screens */
+            box-sizing: border-box; /* Include padding in element's total width and height */
+        }
+
+        /* Canvas styling */
+        canvas {
+            background-color: #1a242f; /* Very dark background for the city itself */
+            display: block;
+            border: 4px solid #7f8c8d; /* Border around the game area */
+            border-radius: 8px;
+            touch-action: none; /* Disable default touch actions like pan/zoom */
+        }
+
+        /* Message box styling */
+        #messageBox {
+            background-color: #2980b9; /* Blue for messages */
+            border: 3px solid #2c3e50;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            text-align: center;
+            font-size: 1.2em;
+            color: #ecf0f1;
+            display: none; /* Hidden by default */
+            max-width: 80%;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.5s ease-out; /* Fade in animation */
+        }
+
+        /* Fade in animation for message box */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Control instructions */
+        .controls {
+            margin-top: 15px;
+            font-size: 0.9em;
+            text-align: center;
+            color: #bdc3c7;
+        }
+
+        /* Inventory display */
+        #inventoryDisplay {
+            background-color: #4a6980; /* Darker blue-grey for inventory */
+            border: 3px solid #2c3e50;
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 15px;
+            text-align: center;
+            font-size: 1em;
+            color: #ecf0f1;
+            min-height: 30px; /* Ensure it has some height even if empty */
+            width: 80%;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Mobile touch controls */
+        .touch-controls {
+            display: none; /* Hidden by default, shown on small screens */
+            margin-top: 20px;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .touch-button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 1.5em;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: background-color 0.2s, transform 0.1s;
+            user-select: none; /* Prevent text selection on touch */
+        }
+
+        .touch-button:active {
+            background-color: #2980b9;
+            transform: scale(0.95);
+        }
+
+        /* Special 'E' button for touch controls */
+        #eButton {
+            background-color: #e67e22; /* Orange for interaction */
+            width: 70px;
+            height: 70px;
+            font-size: 1.8em;
+            border-radius: 50%;
+            margin: 0 10px;
+        }
+
+        @media (max-width: 600px) {
+            .touch-controls {
+                display: grid;
+                grid-template-areas:
+                    ". up ."
+                    "left e-btn right" /* Place E button in the middle */
+                    ". down .";
+                grid-template-columns: repeat(3, 1fr);
+                grid-template-rows: repeat(3, 1fr);
+                width: 250px; /* Fixed width for the control pad */
+                height: 250px; /* Fixed height for the control pad */
+                gap: 5px;
+            }
+
+            .touch-button {
+                width: 50px;
+                height: 50px;
+                font-size: 1.2em;
+            }
+            #eButton {
+                grid-area: e-btn;
+                width: 60px;
+                height: 60px;
+                font-size: 1.5em;
+            }
+
+            #upButton { grid-area: up; }
+            #leftButton { grid-area: left; }
+            #rightButton { grid-area: right; }
+            #downButton { grid-area: down; }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="messageBox"></div>
+        <div class="controls">
+            Use Arrow Keys or WASD to move. Press 'E' to enter/exit car/buildings.
+        </div>
+        <div id="inventoryDisplay">Inventory: Empty</div>
+        <div class="touch-controls" id="touchControls">
+            <button class="touch-button" id="upButton">▲</button>
+            <button class="touch-button" id="leftButton">◀</button>
+            <button class="touch-button" id="eButton">E</button>
+            <button class="touch-button" id="rightButton">▶</button>
+            <button class="touch-button" id="downButton">▼</button>
+        </div>
+    </div>
+
+    <script>
+        // Get the canvas element and its 2D rendering context
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const messageBox = document.getElementById('messageBox');
+        const touchControls = document.getElementById('touchControls');
+        const inventoryDisplay = document.getElementById('inventoryDisplay');
+
+        // Game configuration
+        const TILE_SIZE = 32; // Size of each tile in pixels
+        const PLAYER_SIZE = TILE_SIZE * 0.6; // Player size relative to tile size
+        const GAME_WIDTH = 800; // Desired game width in pixels
+        const GAME_HEIGHT = 600; // Desired game height in pixels
+
+        // Player object
+        const player = {
+            x: 0,
+            y: 0,
+            color: '#f1c40f', // Bright yellow for the player
+            speed: 4, // Player movement speed
+            dx: 0, // Delta x for movement
+            dy: 0,  // Delta y for movement
+            inventory: [] // Player's inventory
+        };
+
+        // Car object
+        const car = {
+            x: TILE_SIZE * 10, // Initial position for the car
+            y: TILE_SIZE * 15,
+            color: '#1abc9c', // Turquoise for the car
+            speed: 8, // Car is faster than player
+            width: TILE_SIZE * 1.2, // Car is wider
+            height: TILE_SIZE * 0.7, // Car is about one tile tall
+            dx: 0,
+            dy: 0,
+            angle: 0 // Current rotation angle of the car in radians
+        };
+
+        let playerInCar = false; // State to track if player is currently in the car
+
+        // Loot items
+        const lootItems = [
+            "Old Watch", "Dusty Book", "Broken Toy", "Empty Can", "Rusty Gear", "Faded Photograph",
+            "Cracked Compass", "Empty Wallet", "Tattered Map", "Mismatched Shoe", "Singed Letter"
+        ];
+
+        // Map data:
+        // 0 = road / floor (walkable)
+        // 1 = building / wall (obstacle)
+        // 2 = rubble (walkable, visual only)
+        // 3 = interaction point (loot item)
+        // 4 = building door (enterable)
+        // 5 = interior exit point
+        const mainCityMap = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 1, 4, 0, 0, 0, 1, 4, 0, 0, 0, 1, 4, 0, 0, 0, 1, 4, 0, 0, 0, 1, 4, 0, 0, 0, 1, 4, 0, 0, 0, 1, 4, 0, 0, 0, 1, 4, 0, 0, 0, 1, 4, 0, 0, 0, 1, 4, 0, 0, 0, 1, 4, 0, 0, 0, 1, 4, 1], // Doors (4)
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 1, 3, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1], // Interaction point (3)
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ];
+
+        // Interior map templates (much larger)
+        const buildingInterior1 = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1],
+            [1, 0, 1, 3, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1], // Loot (3)
+            [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1], // Exit (5)
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ];
+
+        const buildingInterior2 = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1],
+            [1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1],
+            [1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1], // Loot (3)
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1], // Exit (5)
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ];
+
+        const buildingInterior3 = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1], // Loot (3)
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1], // Exit (5)
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ];
+
+        const buildingInterior4 = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1],
+            [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1],
+            [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1],
+            [1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1],
+            [1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 1], // Loot (3)
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 1], // Exit (5)
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ];
+
+        // Pool of interior maps
+        const interiorMapTemplates = [
+            buildingInterior1,
+            buildingInterior2,
+            buildingInterior3,
+            buildingInterior4
+        ];
+
+        // Map of building doors to their interior maps and entry points
+        const buildingDoors = {};
+
+        // Function to initialize building doors with random interiors
+        function initializeBuildingDoors() {
+            // Clear existing doors
+            for (const key in buildingDoors) {
+                delete buildingDoors[key];
+            }
+
+            // Iterate through the main city map to find all potential door locations (next to a building)
+            for (let r = 0; r < mainCityMap.length; r++) {
+                for (let c = 0; c < mainCityMap[r].length; c++) {
+                    if (mainCityMap[r][c] === 4) { // If it's a door tile
+                        const randomInterior = interiorMapTemplates[Math.floor(Math.random() * interiorMapTemplates.length)];
+                        // Assuming entry/exit points are always fixed on the interior templates for simplicity
+                        // You might want to make these dynamic based on interior map design
+                        let entryX, entryY, exitX, exitY;
+
+                        // Find the exit tile (5) in the randomInterior to set the entryCoords
+                        for (let ir = 0; ir < randomInterior.length; ir++) {
+                            for (let ic = 0; ic < randomInterior[ir].length; ic++) {
+                                if (randomInterior[ir][ic] === 5) {
+                                    entryX = ic;
+                                    entryY = ir;
+                                    break;
+                                }
+                            }
+                            if (entryX !== undefined) break;
+                        }
+
+                        // Set the exitCoords to the current door's position on the main map
+                        exitX = c;
+                        exitY = r;
+
+                        buildingDoors[`${c}_${r}`] = {
+                            map: JSON.parse(JSON.stringify(randomInterior)), // Deep copy to allow modification
+                            entryCoords: { x: entryX, y: entryY },
+                            exitCoords: { x: exitX, y: exitY }
+                        };
+                    }
+                }
+            }
+        }
+
+
+        let currentMapData = mainCityMap; // The currently active map
+        let currentMapId = 'mainCityMap'; // Identifier for the current map
+
+        // Store player's position before entering a building
+        const playerPreviousMapState = {
+            x: 0,
+            y: 0,
+            mapId: 'mainCityMap'
+        };
+
+        // Calculate map dimensions in tiles
+        let MAP_ROWS = currentMapData.length;
+        let MAP_COLS = currentMapData[0].length;
+
+        // Camera/Viewport object
+        const camera = {
+            x: 0,
+            y: 0
+        };
+
+        // --- Utility Functions ---
+
+        /**
+         * Displays a message in the message box.
+         * @param {string} message - The message to display.
+         * @param {number} duration - How long to display the message in milliseconds.
+         */
+        function showMessage(message, duration = 3000) {
+            messageBox.textContent = message;
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, duration);
+        }
+
+        /**
+         * Updates the inventory display in the UI.
+         */
+        function updateInventoryDisplay() {
+            if (player.inventory.length === 0) {
+                inventoryDisplay.textContent = "Inventory: Empty";
+            } else {
+                inventoryDisplay.textContent = "Inventory: " + player.inventory.join(', ');
+            }
+        }
+
+        /**
+         * Checks if a given tile coordinate is within the current map boundaries.
+         * @param {number} row - The row index.
+         * @param {number} col - The column index.
+         * @returns {boolean} - True if within bounds, false otherwise.
+         */
+        function isValidTile(row, col) {
+            return row >= 0 && row < MAP_ROWS && col >= 0 && col < MAP_COLS;
+        }
+
+        /**
+         * Gets the tile type at a specific map coordinate of the current map.
+         * @param {number} row - The row index.
+         * @param {number} col - The column index.
+         * @returns {number} - The tile type, or -1 if out of bounds.
+         */
+        function getTileType(row, col) {
+            if (isValidTile(row, col)) {
+                return currentMapData[row][col];
+            }
+            return -1; // Out of bounds
+        }
+
+        /**
+         * Handles window resizing to make the canvas responsive.
+         */
+        function resizeCanvas() {
+            // Set canvas display size (CSS pixels)
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+
+            // Set canvas drawing buffer size (actual pixels)
+            // This ensures crisp rendering regardless of CSS scaling
+            canvas.width = GAME_WIDTH;
+            canvas.height = GAME_HEIGHT;
+
+            // Adjust player initial position to be within the map if needed
+            // (e.g., if map starts with an obstacle at 0,0)
+            if (getTileType(Math.floor(player.y / TILE_SIZE), Math.floor(player.x / TILE_SIZE)) !== 0) {
+                // Find a valid starting position if the initial one is blocked
+                for (let r = 0; r < MAP_ROWS; r++) {
+                    for (let c = 0; c < MAP_COLS; c++) {
+                        if (currentMapData[r][c] === 0) {
+                            player.x = c * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
+                            player.y = r * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- Drawing Functions ---
+
+        /**
+         * Draws the current game map based on tile types.
+         */
+        function drawMap() {
+            // Calculate which tiles are visible on screen
+            const startCol = Math.floor(camera.x / TILE_SIZE);
+            const endCol = Math.ceil((camera.x + canvas.width) / TILE_SIZE);
+            const startRow = Math.floor(camera.y / TILE_SIZE);
+            const endRow = Math.ceil((camera.y + canvas.height) / TILE_SIZE);
+
+            for (let r = startRow; r < endRow; r++) {
+                for (let c = startCol; c < endCol; c++) {
+                    if (isValidTile(r, c)) {
+                        const tileType = currentMapData[r][c];
+                        let color;
+                        switch (tileType) {
+                            case 0: // Road / Floor
+                                color = '#607d8b'; // Slightly darker blue-grey for roads/floors
+                                break;
+                            case 1: // Building / Wall
+                                color = '#455a64'; // Darker, desaturated blue-grey for buildings/walls
+                                break;
+                            case 2: // Rubble (not used in this map, but kept for future expansion)
+                                color = '#90a4ae'; // Muted light grey
+                                break;
+                            case 3: // Interaction point (loot item)
+                                color = '#ff7043'; // Brighter orange for loot
+                                break;
+                            case 4: // Building door
+                                color = '#7e57c2'; // Deeper purple for doors
+                                break;
+                            case 5: // Interior exit point
+                                color = '#4fc3f7'; // Lighter blue for interior exits
+                                break;
+                            default:
+                                color = '#000000'; // Black (unknown tile)
+                        }
+                        ctx.fillStyle = color;
+                        // Draw tile, accounting for camera offset
+                        ctx.fillRect(c * TILE_SIZE - camera.x, r * TILE_SIZE - camera.y, TILE_SIZE, TILE_SIZE);
+
+                        // Optional: Draw a border for buildings/walls to make them stand out
+                        if (tileType === 1) {
+                            ctx.strokeStyle = '#37474f'; /* Even darker border */
+                            ctx.lineWidth = 1;
+                            ctx.strokeRect(c * TILE_SIZE - camera.x, r * TILE_SIZE - camera.y, TILE_SIZE, TILE_SIZE);
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * Draws the player character.
+         */
+        function drawPlayer() {
+            // Only draw player if not in car
+            if (!playerInCar) {
+                ctx.fillStyle = player.color;
+                // Draw player, accounting for camera offset
+                ctx.fillRect(player.x - camera.x, player.y - camera.y, PLAYER_SIZE, PLAYER_SIZE);
+            }
+        }
+
+        /**
+         * Draws the car.
+         */
+        function drawCar() {
+            // Only draw car if on the main city map
+            if (currentMapId === 'mainCityMap') {
+                ctx.fillStyle = car.color;
+
+                // Save the current canvas state (important for transformations)
+                ctx.save();
+
+                // Translate to the center of the car (relative to the camera)
+                ctx.translate(
+                    car.x - camera.x + car.width / 2,
+                    car.y - camera.y + car.height / 2
+                );
+
+                // Rotate the canvas by the car's angle
+                ctx.rotate(car.angle);
+
+                // Draw the car rectangle, centered around the new origin (which is the car's center)
+                ctx.fillRect(-car.width / 2, -car.height / 2, car.width, car.height);
+
+                // Restore the canvas state to what it was before translation and rotation
+                ctx.restore();
+            }
+        }
+
+        // --- Game Logic Functions ---
+
+        /**
+         * Updates game state (player/car movement, camera position).
+         */
+        function update() {
+            let currentEntity;
+            let currentSpeed;
+            let currentWidth;
+            let currentHeight;
+
+            // Determine which entity to control based on playerInCar state
+            if (playerInCar) {
+                currentEntity = car;
+                currentSpeed = car.speed;
+                currentWidth = car.width;
+                currentHeight = car.height;
+            } else {
+                currentEntity = player;
+                currentSpeed = player.speed;
+                currentWidth = PLAYER_SIZE;
+                currentHeight = PLAYER_SIZE;
+            }
+
+            // Calculate new position for the controlled entity
+            let newX = currentEntity.x + currentEntity.dx * currentSpeed;
+            let newY = currentEntity.y + currentEntity.dy * currentSpeed;
+
+            // Collision detection for the controlled entity
+            // Check all 4 corners of the entity
+            const corners = [
+                { x: newX, y: newY }, // Top-left
+                { x: newX + currentWidth, y: newY }, // Top-right
+                { x: newX, y: newY + currentHeight }, // Bottom-left
+                { x: newX + currentWidth, y: newY + currentHeight } // Bottom-right
+            ];
+
+            let canMoveX = true;
+            let canMoveY = true;
+
+            for (const corner of corners) {
+                const tileX = Math.floor(corner.x / TILE_SIZE);
+                const tileY = Math.floor(corner.y / TILE_SIZE);
+
+                // Check if the tile is valid and not an obstacle (building/wall)
+                // Note: Doors (4) and exits (5) are not obstacles, they are interaction points.
+                if (!isValidTile(tileY, tileX) || (getTileType(tileY, tileX) === 1)) {
+                    if (currentEntity.dx !== 0) canMoveX = false;
+                    if (currentEntity.dy !== 0) canMoveY = false;
+                    break;
+                }
+            }
+
+            // Apply movement if no collision
+            if (canMoveX) {
+                currentEntity.x = newX;
+            }
+            if (canMoveY) {
+                currentEntity.y = newY;
+            }
+
+            // Keep current entity within map boundaries
+            currentEntity.x = Math.max(0, Math.min(currentEntity.x, MAP_COLS * TILE_SIZE - currentWidth));
+            currentEntity.y = Math.max(0, Math.min(currentEntity.y, MAP_ROWS * TILE_SIZE - currentHeight));
+
+            // Update car angle if moving
+            if (playerInCar && (car.dx !== 0 || car.dy !== 0)) {
+                car.angle = Math.atan2(car.dy, car.dx);
+            }
+
+            // If player is in car, synchronize player's position with the car's position
+            if (playerInCar) {
+                player.x = car.x + (car.width - PLAYER_SIZE) / 2; // Center player horizontally in car
+                player.y = car.y + (car.height - PLAYER_SIZE) / 2; // Center player vertically in car
+            }
+
+            // Update camera position to follow the player (whether on foot or in car)
+            camera.x = player.x - canvas.width / 2 + PLAYER_SIZE / 2;
+            camera.y = player.y - canvas.height / 2 + PLAYER_SIZE / 2;
+
+            // Keep camera within map boundaries
+            camera.x = Math.max(0, Math.min(camera.x, MAP_COLS * TILE_SIZE - canvas.width));
+            camera.y = Math.max(0, Math.min(camera.y, MAP_ROWS * TILE_SIZE - canvas.height));
+
+            // Interaction checks (only if player is on foot)
+            if (!playerInCar) {
+                const currentTileX = Math.floor((player.x + PLAYER_SIZE / 2) / TILE_SIZE);
+                const currentTileY = Math.floor((player.y + PLAYER_SIZE / 2) / TILE_SIZE);
+                const tileTypeAtPlayer = getTileType(currentTileY, currentTileX);
+
+                // Item interaction
+                if (tileTypeAtPlayer === 3) {
+                    // Get a random loot item
+                    const randomLoot = lootItems[Math.floor(Math.random() * lootItems.length)];
+                    if (!player.inventory.includes(randomLoot)) { // Only add if not already in inventory
+                        player.inventory.push(randomLoot);
+                        updateInventoryDisplay();
+                        showMessage(`You found a ${randomLoot}! It's added to your inventory.`, 4000);
+                        // Optionally change the tile type after interaction to prevent repeated messages
+                        currentMapData[currentTileY][currentTileX] = 0; // Turn it into a road/floor after interaction
+                    } else {
+                        showMessage(`You found a ${randomLoot}, but you already have one!`, 2000);
+                        currentMapData[currentTileY][currentTileX] = 0; // Still remove it
+                    }
+                }
+
+                // Car interaction prompt
+                const distanceToCar = Math.sqrt(
+                    Math.pow(player.x - car.x, 2) +
+                    Math.pow(player.y - car.y, 2)
+                );
+                if (currentMapId === 'mainCityMap' && distanceToCar < TILE_SIZE * 1.5) {
+                    showMessage("Press 'E' to enter the car.", 1000);
+                }
+            } else {
+                // If player is in car, show exit prompt
+                showMessage("Press 'E' to exit the car.", 1000);
+            }
+        }
+
+        /**
+         * Main rendering function. Clears canvas and redraws all elements.
+         */
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the entire canvas
+            drawMap();
+            drawCar(); // Always draw the car
+            drawPlayer(); // Only draw player if not in car
+        }
+
+        /**
+         * The main game loop. Updates game state and renders frames.
+         */
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop); // Request next frame
+        }
+
+        // --- Event Listeners ---
+
+        // Keyboard input for movement and car/building interaction
+        document.addEventListener('keydown', (e) => {
+            let entityToControl = playerInCar ? car : player;
+
+            switch (e.key) {
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    entityToControl.dy = -1;
+                    break;
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    entityToControl.dy = 1;
+                    break;
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                    entityToControl.dx = -1;
+                    break;
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                    entityToControl.dx = 1;
+                    break;
+                case 'e':
+                case 'E':
+                    // Prevent repeated toggling if key is held down
+                    if (e.repeat) return;
+
+                    if (!playerInCar) { // Player is on foot
+                        const playerTileX = Math.floor((player.x + PLAYER_SIZE / 2) / TILE_SIZE);
+                        const playerTileY = Math.floor((player.y + PLAYER_SIZE / 2) / TILE_SIZE);
+                        const tileTypeAtPlayer = getTileType(playerTileY, playerTileX);
+
+                        // Check for car interaction
+                        const distanceToCar = Math.sqrt(
+                            Math.pow(player.x - car.x, 2) +
+                            Math.pow(player.y - car.y, 2)
+                        );
+                        if (currentMapId === 'mainCityMap' && distanceToCar < TILE_SIZE * 1.5) {
+                            playerInCar = true;
+                            player.dx = 0; // Stop player movement
+                            player.dy = 0;
+                            car.dx = 0; // Stop car movement
+                            car.dy = 0;
+                            showMessage("You entered the car!", 2000);
+                            return; // Exit function after handling car interaction
+                        }
+
+                        // Check for building entry (door tile type 4)
+                        if (tileTypeAtPlayer === 4) {
+                            // Find which door was entered
+                            let doorKey = `${playerTileX}_${playerTileY}`;
+                            if (buildingDoors[doorKey]) {
+                                const doorInfo = buildingDoors[doorKey];
+
+                                // Save current map state
+                                playerPreviousMapState.x = player.x;
+                                playerPreviousMapState.y = player.y;
+                                playerPreviousMapState.mapId = currentMapId;
+
+                                // Switch to interior map
+                                currentMapData = doorInfo.map;
+                                currentMapId = `interior_${doorKey}`; // Unique ID for this interior instance
+                                MAP_ROWS = currentMapData.length;
+                                MAP_COLS = currentMapData[0].length;
+
+                                // Set player position to interior entry point
+                                player.x = doorInfo.entryCoords.x * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
+                                player.y = doorInfo.entryCoords.y * TILE_SIZE + (TILE_SIZE - PLAYER_SIZE) / 2;
+
+                                player.dx = 0; player.dy = 0; // Stop movement
+                                showMessage("You entered the building.", 2000);
+                                return; // Exit function
+                            }
+                        }
+
+                        // Check for interior exit (exit tile type 5)
+                        if (tileTypeAtPlayer === 5 && currentMapId.startsWith('interior_')) {
+                            // Return to previous map
+                            currentMapData = mainCityMap;
+                            currentMapId = 'mainCityMap';
+                            MAP_ROWS = currentMapData.length;
+                            MAP_COLS = currentMapData[0].length;
+
+                            // Return player to the exact spot they left
+                            player.x = playerPreviousMapState.x;
+                            player.y = playerPreviousMapState.y;
+
+                            player.dx = 0; player.dy = 0; // Stop movement
+                            showMessage("You exited the building.", 2000);
+                            return; // Exit function
+                        }
+
+                    } else { // Player is in car, exit car
+                        playerInCar = false;
+                        // Place player slightly outside the car when exiting
+                        player.x = car.x + car.width / 2 - PLAYER_SIZE / 2;
+                        player.y = car.y + car.height + 5; // Exit below the car
+                        car.dx = 0; // Stop car movement
+                        car.dy = 0;
+                        showMessage("You exited the car.", 2000);
+                        return; // Exit function
+                    }
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            let entityToControl = playerInCar ? car : player;
+
+            switch (e.key) {
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    entityToControl.dy = 0;
+                    break;
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    entityToControl.dy = 0;
+                    break;
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                    entityToControl.dx = 0;
+                    break;
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                    entityToControl.dx = 0;
+                    break;
+            }
+        });
+
+        // Setup touch controls to control the currently active entity
+        const setupTouchControls = () => {
+            const buttons = {
+                upButton: 'dy',
+                downButton: 'dy',
+                leftButton: 'dx',
+                rightButton: 'dx'
+            };
+            const values = {
+                upButton: -1,
+                downButton: 1,
+                leftButton: -1,
+                rightButton: 1
+            };
+
+            for (const id in buttons) {
+                const button = document.getElementById(id);
+                const axis = buttons[id];
+                const value = values[id];
+
+                button.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    let entityToControl = playerInCar ? car : player;
+                    entityToControl[axis] = value;
+                });
+                button.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    let entityToControl = playerInCar ? car : player;
+                    entityToControl[axis] = 0;
+                });
+            }
+
+            // 'E' button for touch
+            document.getElementById('eButton').addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                // Simulate 'E' key press
+                const event = new KeyboardEvent('keydown', {
+                    key: 'e',
+                    code: 'KeyE',
+                    which: 69,
+                    keyCode: 69,
+                    bubbles: true,
+                    cancelable: true
+                });
+                document.dispatchEvent(event);
+            });
+            document.getElementById('eButton').addEventListener('touchend', (e) => {
+                e.preventDefault();
+                // Simulate 'E' key release (important for preventing repeat)
+                const event = new KeyboardEvent('keyup', {
+                    key: 'e',
+                    code: 'KeyE',
+                    which: 69,
+                    keyCode: 69,
+                    bubbles: true,
+                    cancelable: true
+                });
+                document.dispatchEvent(event);
+            });
+        };
+
+
+        // Initialize the game when the window loads
+        window.onload = function() {
+            initializeBuildingDoors(); // Setup doors with random interiors
+            resizeCanvas(); // Set initial canvas size
+            window.addEventListener('resize', resizeCanvas); // Listen for window resize events
+            gameLoop(); // Start the game loop
+            updateInventoryDisplay(); // Initialize inventory display
+            showMessage("Welcome to the Abandoned City! Explore its many buildings and find hidden loot!", 5000);
+
+            // Setup touch controls after the DOM is ready
+            if ('ontouchstart' in window || navigator.maxTouchPoints) {
+                touchControls.style.display = 'grid'; // Show touch controls on touch-enabled devices
+                setupTouchControls();
+            }
+        };
+    </script>
+</body>
+</html>
